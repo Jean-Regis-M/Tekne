@@ -11,7 +11,7 @@ Tekne ships no third-party art, audio or fonts. All visuals are generated in cod
 | `elics` | MIT | ECS |
 | `@pmndrs/uikit`, `@pmndrs/handle`, `@pmndrs/pointer-events` | MIT (licence text in `LICENSE`) | Pulled in by IWSDK |
 | `@pmndrs/msdfonts` | Redistributes Google Fonts (OFL) | Bundled fonts are disabled in this build |
-| `@babylonjs/havok` | Apache-2.0 | Pulled in by IWSDK; physics is disabled in this app |
+| `@babylonjs/havok` | MIT | Pulled in by IWSDK; physics is disabled in this app |
 | `@drawcall/uikitml` 0.1.8 | **Not declared by the package** | Transitive dependency of IWSDK; Tekne does not use UIKitML directly |
 | Others (`entities`, `moo`, …) | BSD-2/BSD-3/CC0/MIT/Apache-2.0 | Transitive |
 
