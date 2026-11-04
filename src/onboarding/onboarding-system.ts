@@ -13,6 +13,7 @@ import {
   Vector3,
   createSystem,
 } from '@iwsdk/core';
+import { sound } from '../audio/sound.js';
 import { TraySystem } from '../marbling/tray-system.js';
 import { OnboardingFlow, STEPS, type Counters, type StepId } from './flow.js';
 
@@ -96,7 +97,10 @@ export class OnboardingSystem extends createSystem({}) {
     this.quiet = Math.max(0, this.quiet - delta);
 
     const r = this.flow.update(c);
-    if (r.advanced) this.t = 0;
+    if (r.advanced) {
+      this.t = 0;
+      sound.chime();
+    }
     if (this.flow.done) {
       this.finished = true;
       try {

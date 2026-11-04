@@ -81,4 +81,14 @@ export const PALETTE = [
   { id: 'chalk', name: 'Chalk', rgb: [0.95, 0.93, 0.88] },
 ] as const;
 
+/** High-contrast set: maximally distinct in lightness and hue. */
+export const PALETTE_HIGH_CONTRAST = [
+  { id: 'lapis', name: 'Ink blue', rgb: [0.02, 0.12, 0.6] },
+  { id: 'madder', name: 'Signal red', rgb: [0.85, 0.05, 0.05] },
+  { id: 'ochre', name: 'Bright yellow', rgb: [1.0, 0.85, 0.0] },
+  { id: 'malachite', name: 'Emerald', rgb: [0.0, 0.55, 0.3] },
+  { id: 'umber', name: 'Black', rgb: [0.03, 0.03, 0.03] },
+  { id: 'chalk', name: 'White', rgb: [1.0, 1.0, 1.0] },
+] as const;
+
 export type PigmentId = (typeof PALETTE)[number]['id'];

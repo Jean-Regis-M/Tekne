@@ -11,13 +11,17 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   Vector3,
+  VisibilityState,
   XRPlane,
   createSystem,
 } from '@iwsdk/core';
 import { type Handedness, J } from '../hands/joints.js';
 import { perfCounters } from '../debug/perf-hud.js';
 import { XRHandReader } from '../hands/xr-hands.js';
-import { PALETTE, spreadIncrement } from './ops.js';
+import { sound } from '../audio/sound.js';
+import { setSetting, settings, touchDepth } from '../settings.js';
+import { PALETTE, PALETTE_HIGH_CONTRAST, spreadIncrement } from './ops.js';
+import { SettingTile, TILE_IDS } from './tiles.js';
 import {
   COMB_SPACING,
   COMB_TINES,
@@ -31,7 +35,6 @@ import { MarblingSurface } from './surface.js';
 
 const TRAY_W = 0.48;
 const TRAY_D = 0.34;
-const TOUCH_DEPTH = 0.008; // fingertip below this height (m) is "in the water"
 const PINCH_ON = 0.018;
 const PINCH_OFF = 0.03;
 const DROP_SPREAD_SECONDS = 0.5;
@@ -118,6 +121,19 @@ export class TraySystem extends createSystem({
     return this.pots[i].position;
   }
 
+  private tiles: SettingTile[] = [];
+  private tilePress: Record<string, boolean> = {};
+  private inks: MeshBasicMaterial[] = [];
+  /** Metres stroked through the water this frame (for the swish sound). */
+  private strokeThisFrame = 0;
+  private combThisFrame = 0;
+  private head = new Vector3();
+  private fwd = new Vector3();
+
+  private palette() {
+    return settings.highContrast ? PALETTE_HIGH_CONTRAST : PALETTE;
+  }
+
   /** Exposed for the debug HUD / tests. */
   stats = { passesLastFrame: 0, placedOnTable: false };
 
@@ -157,10 +173,10 @@ export class TraySystem extends createSystem({
         new CylinderGeometry(0.022, 0.018, 0.035, 20),
         new MeshStandardMaterial({ color: 0xd8cbb2, roughness: 0.9 }),
       );
-      const ink = new Mesh(
-        new CylinderGeometry(0.019, 0.019, 0.002, 20),
-        new MeshBasicMaterial({ color: (p.rgb[0] * 255) << 16 | (p.rgb[1] * 255) << 8 | (p.rgb[2] * 255) }),
-      );
+      const inkMat = new MeshBasicMaterial();
+      inkMat.color.setRGB(p.rgb[0], p.rgb[1], p.rgb[2]);
+      this.inks.push(inkMat);
+      const ink = new Mesh(new CylinderGeometry(0.019, 0.019, 0.002, 20), inkMat);
       ink.position.y = 0.0175;
       pot.add(ink);
       pot.position.set(-TRAY_W / 2 + 0.04 + i * ((TRAY_W - 0.08) / (PALETTE.length - 1)), 0.0, TRAY_D / 2 + 0.07);
@@ -168,6 +184,29 @@ export class TraySystem extends createSystem({
       this.pots.push(pot);
     });
     this.selectPigment(0);
+    this.refreshInks();
+
+    // Comfort tiles beside the pots: hover painting, contrast, sound.
+    TILE_IDS.forEach((id, i) => {
+      const tile = new SettingTile(id, settings[id]);
+      tile.mesh.position.set(TRAY_W / 2 + 0.03 + i * 0.045, -0.006, TRAY_D / 2 + 0.07);
+      this.tray.add(tile.mesh);
+      this.tiles.push(tile);
+    });
+    sound.setEnabled(settings.sound);
+
+    // Audio may only start from a user gesture: the first pinch or click.
+    const startAudio = () => sound.start();
+    window.addEventListener('pointerdown', startAudio, { once: true });
+    this.cleanupFuncs.push(
+      this.world.visibilityState.subscribe((v) => {
+        // Pause on blur (system menu, headset off), resume when visible again.
+        if (v === VisibilityState.Visible) {
+          this.world.session?.addEventListener('selectstart', startAudio, { once: true });
+          sound.resume();
+        } else sound.suspend();
+      }),
+    );
 
     this.comb = createComb();
     this.comb.rotation.y = Math.PI / 2; // resting along the left rim
@@ -196,7 +235,21 @@ export class TraySystem extends createSystem({
     });
   }
 
-  private selectPigment(i: number): void {
+  private refreshInks(): void {
+    const pal = this.palette();
+    this.inks.forEach((m, i) => m.color.setRGB(pal[i].rgb[0], pal[i].rgb[1], pal[i].rgb[2]));
+  }
+
+  private toggleTile(tile: SettingTile): void {
+    const on = !settings[tile.id];
+    setSetting(tile.id, on);
+    tile.set(on);
+    if (tile.id === 'highContrast') this.refreshInks();
+    if (tile.id === 'sound') sound.setEnabled(on);
+    sound.tock();
+  }
+
+  selectPigment(i: number): void {
     this.pigment = i;
     this.pots.forEach((pot, k) => {
       pot.position.y = k === i ? 0.012 : 0;
@@ -228,6 +281,8 @@ export class TraySystem extends createSystem({
       this.placedInFront = true;
     }
 
+    this.strokeThisFrame = 0;
+    this.combThisFrame = 0;
     this.reader.update(frame, this.world.xrReferenceSpace, this.player);
     for (const side of ['left', 'right'] as const) {
       if (this.reader.tracked[side]) this.handleHand(side);
@@ -249,6 +304,13 @@ export class TraySystem extends createSystem({
       d.current = next;
       if (t >= 1) this.drops.splice(i, 1);
     }
+
+    this.tray.getWorldPosition(this.tmp);
+    this.player.head.getWorldPosition(this.head);
+    this.player.head.getWorldDirection(this.fwd).negate();
+    sound.setPose(this.tmp, this.head, this.fwd);
+    const moved = Math.max(this.strokeThisFrame, this.combThisFrame);
+    sound.setStrokeSpeed(delta > 0 ? moved / delta : 0, this.combThisFrame > this.strokeThisFrame);
 
     this.water.material.map = this.surface.texture;
     this.stats.passesLastFrame = this.surface.takePassCount();
@@ -281,18 +343,38 @@ export class TraySystem extends createSystem({
       ) {
         this.selectPigment(i);
         this.counters.pigmentPicks++;
+        sound.tock();
       }
     }
 
-    // Stylus: fingertip in the water drags the fluid.
-    const inWater = over && this.tip.y < TOUCH_DEPTH;
+    // Poke a tile to toggle a comfort setting (once per press).
+    for (const tile of this.tiles) {
+      const near =
+        Math.hypot(this.tip.x - tile.mesh.position.x, this.tip.z - tile.mesh.position.z) < 0.02 &&
+        this.tip.y < 0.015 &&
+        this.tip.y > -0.02;
+      const key = tile.id + '_' + side;
+      if (near && !this.tilePress[key]) this.toggleTile(tile);
+      this.tilePress[key] = near;
+    }
+
+    // Stylus: fingertip in the water drags the fluid. A light low-pass on the
+    // fingertip steadies tremor and tracking jitter without adding much lag.
+    const inWater = over && this.tip.y < touchDepth();
     if (inWater && st.touching) {
-      this.surface.addStroke(st.lastX, st.lastY, sx, sy);
-      this.counters.stylusTravel += Math.hypot(sx - st.lastX, sy - st.lastY);
+      const nx = st.lastX + (sx - st.lastX) * 0.6;
+      const ny = st.lastY + (sy - st.lastY) * 0.6;
+      this.surface.addStroke(st.lastX, st.lastY, nx, ny);
+      const d = Math.hypot(nx - st.lastX, ny - st.lastY);
+      this.counters.stylusTravel += d;
+      this.strokeThisFrame += d;
+      st.lastX = nx;
+      st.lastY = ny;
+    } else {
+      st.lastX = sx;
+      st.lastY = sy;
     }
     st.touching = inWater;
-    st.lastX = sx;
-    st.lastY = sy;
 
     // Pinch: grab a tool if the pinch starts near one, otherwise ready a drop.
     this.pinchPt.set(
@@ -316,7 +398,7 @@ export class TraySystem extends createSystem({
       st.pinched = false;
       if (st.tool === 'comb') this.returnComb();
       else if (st.tool === 'paper') this.releasePaper();
-      else if (over && this.tip.y > TOUCH_DEPTH && this.tip.y < 0.35) {
+      else if (over && this.tip.y > touchDepth() && this.tip.y < 0.35) {
         // Higher release, bigger splash (within a natural range).
         const target = 0.014 + Math.min(0.3, this.tip.y) * 0.08;
         this.drops.push({
@@ -325,9 +407,10 @@ export class TraySystem extends createSystem({
           target,
           current: 0,
           age: 0,
-          rgb: PALETTE[this.pigment].rgb,
+          rgb: this.palette()[this.pigment].rgb,
         });
         this.counters.drops++;
+        sound.drop(this.pigment / (PALETTE.length - 1), target);
       }
       st.tool = 'none';
     }
@@ -350,10 +433,12 @@ export class TraySystem extends createSystem({
     const cx = this.pinchPt.x;
     const cy = -this.pinchPt.z;
     const inside = Math.abs(cy) < TRAY_D / 2 && Math.abs(cx) < TRAY_W / 2 + 0.1;
-    const inWater = inside && tipsY < TOUCH_DEPTH;
+    const inWater = inside && tipsY < touchDepth();
     if (inWater && st.combIn) {
       this.surface.addComb(st.combX, st.combY, cx, cy, 1, 0, COMB_TINES, COMB_SPACING);
-      this.counters.combTravel += Math.hypot(cx - st.combX, cy - st.combY);
+      const d = Math.hypot(cx - st.combX, cy - st.combY);
+      this.counters.combTravel += d;
+      this.combThisFrame += d;
     }
     st.combIn = inWater;
     st.combX = cx;
@@ -383,5 +468,6 @@ export class TraySystem extends createSystem({
     this.surface.clear([0.93, 0.9, 0.82]);
     this.drops.length = 0;
     this.counters.prints++;
+    sound.print();
   }
 }
