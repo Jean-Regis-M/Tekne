@@ -11,7 +11,7 @@
 <sub>Captured in the Immersive Web Emulator (Meta Quest 3 profile). Prints hang on a detected wall and step around the room's existing painting.</sub>
 
 **▶ Try it on Meta Quest 3 / 3S:** [jean-regis-m.github.io/Tekne](https://jean-regis-m.github.io/Tekne/) — open in the Quest Browser, press *Enter mixed reality*, put your controllers down.
-&nbsp;·&nbsp; **Demo video:** *[link added after upload]*
+&nbsp;·&nbsp; **Demo video (2:17):** [youtu.be/LQVq5aP8SHs](https://youtu.be/LQVq5aP8SHs)
 
 </div>
 
