@@ -10,6 +10,9 @@
 
 <sub>Captured in the Immersive Web Emulator (Meta Quest 3 profile). Prints hang on a detected wall and step around the room's existing painting.</sub>
 
+**▶ Try it on Meta Quest 3 / 3S:** [jean-regis-m.github.io/Tekne](https://jean-regis-m.github.io/Tekne/) — open in the Quest Browser, press *Enter mixed reality*, put your controllers down.
+&nbsp;·&nbsp; **Demo video:** *[link added after upload]*
+
 </div>
 
 ---
@@ -142,13 +145,39 @@ npm run build        # static production build in dist/
 | Wall layout (never off-wall, never over windows or wall art, 1–6 prints) | Vitest | ✅ |
 | Hand-pose features and recognizer on the emulator's own hand skeletons | Vitest | ✅ |
 | Drops, stylus, comb, paper, gallery, lesson, comfort tiles | Immersive Web Emulator, scripted hand input via its remote-control API | ✅ in emulator |
-| Frame rate on Meta Quest 3/3S | In-headset HUD (`?hud=1`) and `metavr perf` | ⏳ not yet measured on device |
+| Frame rate on Meta Quest 3/3S | In-headset HUD (`?hud=1`) | ⏳ see Performance below |
 
-26 unit tests pass (`npm test`). Emulator results show the logic works; **they are not headset validation**. On-device performance numbers will be added here once measured.
+27 unit tests pass (`npm test`). Emulator results show the logic works; **they are not headset validation**.
+
+## Performance
+
+Every number below says where it was measured. Laptop and emulator numbers do **not** stand in for the headset: Quest renders two eyes at a much higher resolution on a mobile GPU.
+
+**On Meta Quest 3 / 3S (device)**
+
+| Scenario | Average fps | Worst frame | Measured by |
+|---|---|---|---|
+| Idle in mixed reality | *pending* | *pending* | — |
+| Painting continuously (drops, stylus, comb) | *pending* | *pending* | — |
+
+To reproduce on a headset: open the live link with `?hud=1`. A readout below your view shows frames per second, worst frame time and GPU passes per second over 1-second windows.
+
+**On a laptop in the Immersive Web Emulator (not a headset)** — Intel Core i5-8350U, Intel UHD Graphics 620 integrated GPU, Quest 3 emulator profile, 1280×720, 2026-11-04:
+
+| Measurement | Result |
+|---|---|
+| Frame rate, window visible, in XR | steady 60 fps (display refresh cap) |
+| GPU cost: fingertip stroke pass | 0.30 ms (was 2.10 ms before region-limited passes) |
+| GPU cost: comb pass, 12 tines | 0.79 ms (was 7.58 ms) |
+| GPU cost: drop spread step (full texture by design) | ≈1.3 ms |
+| Full scene render, 57 draw calls, 10.6k triangles | ≈2.4 ms |
+| Heaviest painting frame (render + comb + 2 strokes + 1 drop step) | ≈5 ms of the 16.7 ms budget for 60 fps |
+
+GPU costs were timed with a synchronous read-back after each operation. Region-limited passes were verified byte-for-byte identical to full-texture passes (6.7 MB compared, zero differences).
 
 ## Known limitations
 
-- On-device performance and tracking quality are **not yet measured**; see the table above.
+- On-device frame rate and tracking quality: see *Performance* (device rows are filled in only from headset measurements).
 - Prints are stored only in this browser on this headset (up to 12). There are no accounts and no cloud.
 - If the room has no scanned table or wall, the tray floats at seated height and prints hang in a row behind it.
 - Drops spread in six discrete GPU steps. Very long sessions slowly soften fine detail through resampling, and lifting a print starts a fresh tray.

@@ -1,15 +1,40 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="Tekne: Turkish ebru marbling on your own desk, in mixed reality, with nothing but your hands. For Meta Quest 3 and 3S." />
     <link rel="icon" href="data:," />
-    <title>repository</title>
+    <title>Tekne · ebru marbling in mixed reality</title>
+    <style>
+      :root { --ink: #1b2238; --paper: #f3ecdc; --ochre: #d99e33; --soft: #c9bfa8; }
+      html, body { margin: 0; background: var(--ink); color: var(--paper); font-family: Georgia, 'Times New Roman', serif; }
+      #landing { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box;
+        background: radial-gradient(circle at 70% 30%, #2a3354 0%, var(--ink) 65%); }
+      #landing.hidden { display: none; }
+      .card { max-width: 560px; text-align: center; }
+      h1 { font-size: clamp(48px, 10vw, 88px); letter-spacing: 0.18em; margin: 0 0 8px; font-weight: 700; }
+      .rule { width: 96px; height: 4px; background: var(--ochre); margin: 20px auto 24px; border: 0; }
+      .lede { font-style: italic; font-size: clamp(20px, 3.4vw, 28px); line-height: 1.35; margin: 0 0 28px; }
+      .how { font-family: system-ui, 'Segoe UI', sans-serif; color: var(--soft); font-size: 17px; line-height: 1.6; margin: 0 0 32px; }
+      button { font: 600 20px system-ui, 'Segoe UI', sans-serif; color: var(--ink); background: var(--ochre); border: 0; border-radius: 999px;
+        padding: 18px 40px; cursor: pointer; min-width: 280px; }
+      button:disabled { background: #6b6553; color: #2a2620; cursor: default; }
+      button:focus-visible { outline: 3px solid var(--paper); outline-offset: 4px; }
+      .note { font-family: system-ui, 'Segoe UI', sans-serif; color: var(--soft); font-size: 15px; margin-top: 20px; min-height: 1.4em; }
+    </style>
   </head>
-  <body style="margin: 0">
+  <body>
+    <div id="landing" role="dialog" aria-labelledby="t-title">
+      <div class="card">
+        <h1 id="t-title">TEKNE</h1>
+        <hr class="rule" />
+        <p class="lede">Turkish ebru marbling on your own desk, with nothing but your hands.</p>
+        <p class="how">Sit at a table. Put your controllers down. Pinch to drop paint, dip a fingertip to swirl it, pull the comb, then lay the paper on the water to lift a print onto your wall.</p>
+        <button id="enter" type="button" disabled>Loading…</button>
+        <p class="note" id="note"></p>
+      </div>
+    </div>
     <div id="scene-container"></div>
     <script type="module" src="/src/index.ts"></script>
   </body>
