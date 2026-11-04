@@ -159,10 +159,19 @@ Every number below says where it was measured. Laptop and emulator numbers do **
 
 | Scenario | Average fps | Worst frame | Measured by |
 |---|---|---|---|
-| Idle in mixed reality | *pending* | *pending* | — |
-| Painting continuously (drops, stylus, comb) | *pending* | *pending* | — |
+| Idle in mixed reality | *not yet measured on a headset* | — | — |
+| Painting continuously (drops, stylus, comb) | *not yet measured on a headset* | — | — |
 
 To reproduce on a headset: open the live link with `?hud=1`. A readout below your view shows frames per second, worst frame time and GPU passes per second over 1-second windows.
+
+**Same scenarios in the virtual simulation (Immersive Web Emulator, Meta Quest 3 profile, on a laptop — not a headset)** — Intel Core i5-8350U, Intel UHD Graphics 620, 1280×720 mono view, 2026-11-04:
+
+| Scenario | Average | Worst frame | How it was measured |
+|---|---|---|---|
+| Idle in mixed reality | **60 fps** (59.8–60.1 across 1 s windows; display refresh cap) | 18.8–21.0 ms (one missed refresh at most per second) | In-app readout (`?hud=1`), window visible, after start-up |
+| Painting continuously (drops, stylus, comb) | **≈5 ms of GPU work per frame**, about 30% of the 16.7 ms budget for 60 fps | ≈5.1 ms (render 2.4 + comb 0.79 + two strokes 0.6 + one drop step 1.3) | Each operation timed with a synchronous GPU read-back; frame rate not reported because no valid continuous-painting fps run exists (see below) |
+
+Runs discarded as invalid, not as results: a 30 s painting run in which the browser window was out of view (Chromium throttled frames to 1–2 s intervals), and readings taken while the screen recorder was encoding video (24.5 fps, recorder load). The first ~7 s after launch run at 1–4 fps while the emulator's synthetic room and shaders load.
 
 **On a laptop in the Immersive Web Emulator (not a headset)** — Intel Core i5-8350U, Intel UHD Graphics 620 integrated GPU, Quest 3 emulator profile, 1280×720, 2026-11-04:
 
