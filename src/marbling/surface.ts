@@ -110,6 +110,11 @@ void main() {
 }
 `;
 
+const COPY_FRAG = /* glsl */ `
+${COMMON}
+void main() { gl_FragColor = vec4(texture2D(src, vUv).rgb, 1.0); }
+`;
+
 const FILL_FRAG = /* glsl */ `
 ${COMMON}
 uniform vec3 ink;
@@ -138,6 +143,7 @@ export class MarblingSurface {
   private stroke: ShaderMaterial;
   private fill: ShaderMaterial;
   private comb: ShaderMaterial;
+  private copy: ShaderMaterial;
   /** Number of GPU passes run since the last call to takePassCount(). */
   private passes = 0;
 
@@ -202,7 +208,8 @@ export class MarblingSurface {
       fragmentShader: FILL_FRAG,
       uniforms: { ...base, ink: { value: new Vector3() } },
     });
-    for (const m of [this.drop, this.stroke, this.fill, this.comb]) {
+    this.copy = new ShaderMaterial({ vertexShader: VERT, fragmentShader: COPY_FRAG, uniforms: { ...base } });
+    for (const m of [this.drop, this.stroke, this.fill, this.comb, this.copy]) {
       m.depthTest = false;
       m.depthWrite = false;
     }
@@ -237,7 +244,9 @@ export class MarblingSurface {
     (this.stroke.uniforms.a.value as Vector2).set(ax, ay);
     (this.stroke.uniforms.b.value as Vector2).set(bx, by);
     this.stroke.uniforms.lambda.value = lambda;
-    this.pass(this.stroke);
+    // Beyond 3 lambda the weight is below exp(-9): nothing visibly moves.
+    const m = 3 * lambda;
+    this.pass(this.stroke, Math.min(ax, bx) - m, Math.min(ay, by) - m, Math.max(ax, bx) + m, Math.max(ay, by) + m);
   }
 
   /**
@@ -256,7 +265,11 @@ export class MarblingSurface {
     u.count.value = Math.min(16, count);
     u.spacing.value = spacing;
     u.lambda.value = lambda;
-    this.pass(this.comb);
+    const half = ((Math.min(16, count) - 1) / 2) * spacing;
+    const m = 3 * lambda;
+    const ex = Math.abs(acrossX) * half + m;
+    const ey = Math.abs(acrossY) * half + m;
+    this.pass(this.comb, Math.min(ax, bx) - ex, Math.min(ay, by) - ey, Math.max(ax, bx) + ex, Math.max(ay, by) + ey);
   }
 
   takePassCount(): number {
@@ -273,27 +286,56 @@ export class MarblingSurface {
     return { data, width: t.width, height: t.height };
   }
 
-  private pass(mat: ShaderMaterial): void {
-    const write = 1 - this.read;
-    mat.uniforms.src.value = this.targets[this.read].texture;
-    this.quad.material = mat;
+  /**
+   * One operation. With a region (tray metres) only that rectangle is
+   * recomputed: the result is written into the spare target and copied back
+   * into the current one, so both stay identical everywhere else. Without a
+   * region the whole texture is recomputed (drops push paint everywhere).
+   */
+  private pass(mat: ShaderMaterial, x0?: number, y0?: number, x1?: number, y1?: number): void {
     const r = this.renderer;
     const prevTarget = r.getRenderTarget();
     // While an XR session is presenting, three.js would swap in the XR
     // camera and stereo viewports; offscreen passes must bypass that.
     const xrWasEnabled = r.xr.enabled;
     r.xr.enabled = false;
-    r.setRenderTarget(this.targets[write]);
-    r.render(this.scene, this.camera);
+    const src = this.targets[this.read];
+    const dst = this.targets[1 - this.read];
+    mat.uniforms.src.value = src.texture;
+    this.quad.material = mat;
+    if (x0 === undefined) {
+      r.setRenderTarget(dst);
+      r.render(this.scene, this.camera);
+      this.read = 1 - this.read;
+    } else {
+      const W = src.width;
+      const H = src.height;
+      const px0 = Math.max(0, Math.floor((x0! / this.width + 0.5) * W) - 1);
+      const py0 = Math.max(0, Math.floor((y0! / this.depth + 0.5) * H) - 1);
+      const px1 = Math.min(W, Math.ceil((x1! / this.width + 0.5) * W) + 1);
+      const py1 = Math.min(H, Math.ceil((y1! / this.depth + 0.5) * H) + 1);
+      if (px1 > px0 && py1 > py0) {
+        for (const t of this.targets) {
+          t.scissor.set(px0, py0, px1 - px0, py1 - py0);
+          t.scissorTest = true;
+        }
+        r.setRenderTarget(dst);
+        r.render(this.scene, this.camera);
+        this.copy.uniforms.src.value = dst.texture;
+        this.quad.material = this.copy;
+        r.setRenderTarget(src);
+        r.render(this.scene, this.camera);
+        for (const t of this.targets) t.scissorTest = false;
+      }
+    }
     r.setRenderTarget(prevTarget);
     r.xr.enabled = xrWasEnabled;
-    this.read = write;
     this.passes++;
   }
 
   dispose(): void {
     for (const t of this.targets) t.dispose();
-    for (const m of [this.drop, this.stroke, this.fill, this.comb]) m.dispose();
+    for (const m of [this.drop, this.stroke, this.fill, this.comb, this.copy]) m.dispose();
     this.quad.geometry.dispose();
   }
 }

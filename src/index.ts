@@ -14,6 +14,9 @@ World.create(
   if (lessonNeeded()) world.registerSystem(OnboardingSystem);
   if (new URLSearchParams(location.search).has('hud')) world.registerSystem(PerfHudSystem);
   console.info('[ebru] world ready');
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('rec')) {
+    void import('./debug/recorder.js').then((m) => m.installRecorder(world.renderer.domElement));
+  }
   if (import.meta.env.DEV) {
     // Development-only handle for emulator-driven tests and evidence capture.
     (window as unknown as Record<string, unknown>).__ebru = {

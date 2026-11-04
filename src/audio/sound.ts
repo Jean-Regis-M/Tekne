@@ -76,6 +76,15 @@ export class StudioSound {
     return src;
   }
 
+  /** Development recording: a live audio track of everything the app plays. */
+  captureTrack(): MediaStreamTrack | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    const dest = ctx.createMediaStreamDestination();
+    this.master.connect(dest);
+    return dest.stream.getAudioTracks()[0] ?? null;
+  }
+
   suspend(): void {
     void this.ctx?.suspend();
   }
