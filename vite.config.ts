@@ -9,7 +9,11 @@ import { iwsdkDev } from '@iwsdk/vite-plugin-dev';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [iwsdkDev()],
+  plugins: [
+    // IWSDK_HTTP=1 serves plain HTTP for local emulator testing (localhost is a
+    // secure context); the default HTTPS is needed when a headset connects over LAN.
+    iwsdkDev(process.env.IWSDK_HTTP === '1' ? { https: false } : {}),
+  ],
   server: { host: '0.0.0.0', port: 8081, open: false },
   build: {
     outDir: 'dist',
