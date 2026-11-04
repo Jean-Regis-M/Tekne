@@ -335,19 +335,22 @@ export class TraySystem extends createSystem({
     const sy = -this.tip.z;
     const over = Math.abs(sx) < TRAY_W / 2 && Math.abs(sy) < TRAY_D / 2;
 
-    // Poke a pot to choose a pigment.
+    // Poke a pot to choose a pigment. Each new press counts and answers with
+    // a tap, including the pot already chosen (the lesson's first step points
+    // at it), so a poke never goes unacknowledged.
     for (let i = 0; i < this.pots.length; i++) {
       const pot = this.pots[i];
-      if (
+      const near =
         Math.hypot(this.tip.x - pot.position.x, this.tip.z - pot.position.z) < 0.03 &&
         this.tip.y < 0.05 &&
-        this.tip.y > -0.01 &&
-        i !== this.pigment
-      ) {
+        this.tip.y > -0.01;
+      const key = 'pot' + i + '_' + side;
+      if (near && !this.tilePress[key]) {
         this.selectPigment(i);
         this.counters.pigmentPicks++;
         sound.tock();
       }
+      this.tilePress[key] = near;
     }
 
     // Poke a tile to toggle a comfort setting (once per press).
