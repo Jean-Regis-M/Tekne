@@ -136,6 +136,8 @@ npm test             # unit tests (Vitest)
 npm run build        # static production build in dist/
 ```
 
+**Deployment.** The live site is served by GitHub Pages from the `gh-pages` branch (Settings → Pages → Deploy from a branch → `gh-pages` / root). To publish a new build: run `npm run build`, add an empty `dist/.nojekyll` (Vite emits a file whose name starts with `_`, which Jekyll would otherwise drop), and commit the contents of `dist/` to `gh-pages`. Per the competition rules, the deployed build is not changed between the submission deadline and the winner announcement.
+
 ## Testing
 
 | What | How | Status |
