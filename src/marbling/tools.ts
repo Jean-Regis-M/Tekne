@@ -71,7 +71,13 @@ export function createPrintMesh(canvas: HTMLCanvasElement, widthM: number): Mesh
     new BoxGeometry(widthM + 0.02, h + 0.02, 0.008),
     new MeshStandardMaterial({ color: 0x3b2516, roughness: 0.8 }),
   );
-  frame.position.z = -0.0045;
+  // Keep the frame's front face well behind the print: prints are scaled
+  // down and seen from metres away, where a sub-millimetre gap z-fights.
+  frame.position.z = -0.016;
+  const mat = print.material as MeshBasicMaterial;
+  mat.polygonOffset = true;
+  mat.polygonOffsetFactor = -2;
+  mat.polygonOffsetUnits = -2;
   print.add(frame);
   print.name = 'print';
   return print;

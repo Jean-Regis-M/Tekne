@@ -24,9 +24,6 @@ import {
   COMB_TINE_LENGTH,
   createComb,
   createPaper,
-  createPrintMesh,
-  imageToCanvas,
-  loadPrints,
   pixelsToCanvas,
   savePrint,
 } from './tools.js';
@@ -90,7 +87,8 @@ export class TraySystem extends createSystem({
   private paper!: Mesh;
   private combHome = new Vector3(-TRAY_W / 2 - 0.05, 0.03, 0);
   private paperHome = new Vector3(TRAY_W / 2 + 0.16, 0.002, 0);
-  private gallery = new Group();
+  /** Called with each new print canvas and the tray's world position. */
+  readonly printListeners: Array<(canvas: HTMLCanvasElement, from: Vector3) => void> = [];
   /** Interaction counters read by onboarding and tests. */
   readonly counters = {
     pigmentPicks: 0,
@@ -178,11 +176,6 @@ export class TraySystem extends createSystem({
     this.paper = createPaper(0.2, 0.14);
     this.paper.position.copy(this.paperHome);
     this.tray.add(this.paper);
-    this.gallery.position.set(0, 0.32, -TRAY_D / 2 - 0.08);
-    this.tray.add(this.gallery);
-    for (const p of loadPrints().slice(0, 3)) {
-      void imageToCanvas(p.image).then((c) => this.hangPrint(c, false));
-    }
 
     this.world.createTransformEntity(this.tray);
 
@@ -385,27 +378,10 @@ export class TraySystem extends createSystem({
     const { data, width, height } = this.surface.readPixels();
     const canvas = pixelsToCanvas(data, width, height);
     savePrint(canvas);
-    this.hangPrint(canvas, true);
+    this.tray.getWorldPosition(this.tmp);
+    for (const fn of this.printListeners) fn(canvas, this.tmp);
     this.surface.clear([0.93, 0.9, 0.82]);
     this.drops.length = 0;
     this.counters.prints++;
-  }
-
-  /** Hangs a print in a row behind the tray: newest centre, older alternating outward. */
-  private hangPrint(canvas: HTMLCanvasElement, newest: boolean): void {
-    const print = createPrintMesh(canvas, 0.24);
-    print.rotation.x = -0.12;
-    const order = this.gallery.children.slice();
-    if (newest) order.unshift(print);
-    else order.push(print);
-    while (order.length > 5) {
-      const old = order.pop()!;
-      this.gallery.remove(old);
-    }
-    this.gallery.add(print);
-    order.forEach((m, i) => {
-      const slot = Math.ceil(i / 2) * (i % 2 ? -1 : 1);
-      m.position.set(slot * 0.27, -Math.abs(slot) * 0.02, 0);
-    });
   }
 }
