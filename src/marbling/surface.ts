@@ -82,6 +82,34 @@ void main() {
 }
 `;
 
+const COMB_FRAG = /* glsl */ `
+${COMMON}
+uniform vec2 a;       // comb centre, previous frame
+uniform vec2 b;       // comb centre, this frame
+uniform vec2 across;  // unit vector along the comb's spine
+uniform float spacing;
+uniform float count;
+uniform float lambda;
+float segDist2(vec2 p, vec2 a, vec2 b) {
+  vec2 ab = b - a;
+  float l2 = dot(ab, ab);
+  float t = l2 > 1e-12 ? clamp(dot(p - a, ab) / l2, 0.0, 1.0) : 0.0;
+  vec2 c = a + ab * t - p;
+  return dot(c, c);
+}
+void main() {
+  vec2 q = toMetres(vUv);
+  float w = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (float(i) >= count) break;
+    vec2 o = across * ((float(i) - (count - 1.0) * 0.5) * spacing);
+    w = max(w, exp(-segDist2(q, a + o, b + o) / (lambda * lambda)));
+  }
+  vec2 p = q - (b - a) * w;
+  gl_FragColor = vec4(resample(q, p), 1.0);
+}
+`;
+
 const FILL_FRAG = /* glsl */ `
 ${COMMON}
 uniform vec3 ink;
@@ -109,6 +137,7 @@ export class MarblingSurface {
   private drop: ShaderMaterial;
   private stroke: ShaderMaterial;
   private fill: ShaderMaterial;
+  private comb: ShaderMaterial;
   /** Number of GPU passes run since the last call to takePassCount(). */
   private passes = 0;
 
@@ -155,12 +184,25 @@ export class MarblingSurface {
         lambda: { value: 0.012 },
       },
     });
+    this.comb = new ShaderMaterial({
+      vertexShader: VERT,
+      fragmentShader: COMB_FRAG,
+      uniforms: {
+        ...base,
+        a: { value: new Vector2() },
+        b: { value: new Vector2() },
+        across: { value: new Vector2(1, 0) },
+        spacing: { value: 0.02 },
+        count: { value: 12 },
+        lambda: { value: 0.006 },
+      },
+    });
     this.fill = new ShaderMaterial({
       vertexShader: VERT,
       fragmentShader: FILL_FRAG,
       uniforms: { ...base, ink: { value: new Vector3() } },
     });
-    for (const m of [this.drop, this.stroke, this.fill]) {
+    for (const m of [this.drop, this.stroke, this.fill, this.comb]) {
       m.depthTest = false;
       m.depthWrite = false;
     }
@@ -198,6 +240,25 @@ export class MarblingSurface {
     this.pass(this.stroke);
   }
 
+  /**
+   * Comb (tarak): `count` tines `spacing` apart along `across`, all moved
+   * from a to b in one pass.
+   */
+  addComb(
+    ax: number, ay: number, bx: number, by: number,
+    acrossX: number, acrossY: number, count: number, spacing: number, lambda = 0.006,
+  ): void {
+    if (Math.abs(bx - ax) + Math.abs(by - ay) < 1e-5) return;
+    const u = this.comb.uniforms;
+    (u.a.value as Vector2).set(ax, ay);
+    (u.b.value as Vector2).set(bx, by);
+    (u.across.value as Vector2).set(acrossX, acrossY);
+    u.count.value = Math.min(16, count);
+    u.spacing.value = spacing;
+    u.lambda.value = lambda;
+    this.pass(this.comb);
+  }
+
   takePassCount(): number {
     const n = this.passes;
     this.passes = 0;
@@ -232,7 +293,7 @@ export class MarblingSurface {
 
   dispose(): void {
     for (const t of this.targets) t.dispose();
-    for (const m of [this.drop, this.stroke, this.fill]) m.dispose();
+    for (const m of [this.drop, this.stroke, this.fill, this.comb]) m.dispose();
     this.quad.geometry.dispose();
   }
 }

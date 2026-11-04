@@ -18,6 +18,18 @@ import { type Handedness, J } from '../hands/joints.js';
 import { perfCounters } from '../debug/perf-hud.js';
 import { XRHandReader } from '../hands/xr-hands.js';
 import { PALETTE, spreadIncrement } from './ops.js';
+import {
+  COMB_SPACING,
+  COMB_TINES,
+  COMB_TINE_LENGTH,
+  createComb,
+  createPaper,
+  createPrintMesh,
+  imageToCanvas,
+  loadPrints,
+  pixelsToCanvas,
+  savePrint,
+} from './tools.js';
 import { MarblingSurface } from './surface.js';
 
 const TRAY_W = 0.48;
@@ -38,12 +50,21 @@ interface SpreadingDrop {
   rgb: readonly [number, number, number];
 }
 
+type Tool = 'none' | 'comb' | 'paper';
+
 interface HandInput {
   touching: boolean;
   lastX: number;
   lastY: number;
   pinched: boolean;
+  tool: Tool;
+  /** Previous comb centre on the water, when the tines were in it. */
+  combIn: boolean;
+  combX: number;
+  combY: number;
 }
+
+const GRAB_RADIUS = 0.05;
 
 export class TraySystem extends createSystem({
   planes: { required: [XRPlane] },
@@ -54,8 +75,8 @@ export class TraySystem extends createSystem({
   private reader = new XRHandReader();
   private drops: SpreadingDrop[] = [];
   private handInput: Record<Handedness, HandInput> = {
-    left: { touching: false, lastX: 0, lastY: 0, pinched: false },
-    right: { touching: false, lastX: 0, lastY: 0, pinched: false },
+    left: { touching: false, lastX: 0, lastY: 0, pinched: false, tool: 'none', combIn: false, combX: 0, combY: 0 },
+    right: { touching: false, lastX: 0, lastY: 0, pinched: false, tool: 'none', combIn: false, combX: 0, combY: 0 },
   };
   private pots: Mesh[] = [];
   private pigment = 0;
@@ -64,6 +85,14 @@ export class TraySystem extends createSystem({
   private tip = new Vector3();
   private thumb = new Vector3();
   private tmp = new Vector3();
+  private pinchPt = new Vector3();
+  private comb!: Group;
+  private paper!: Mesh;
+  private combHome = new Vector3(-TRAY_W / 2 - 0.05, 0.03, 0);
+  private paperHome = new Vector3(TRAY_W / 2 + 0.16, 0.002, 0);
+  private gallery = new Group();
+  /** Count of prints made this session (for tests and the HUD). */
+  printsMade = 0;
 
   /** Exposed for the debug HUD / tests. */
   stats = { passesLastFrame: 0, placedOnTable: false };
@@ -115,6 +144,19 @@ export class TraySystem extends createSystem({
       this.pots.push(pot);
     });
     this.selectPigment(0);
+
+    this.comb = createComb();
+    this.comb.rotation.y = Math.PI / 2; // resting along the left rim
+    this.comb.position.copy(this.combHome);
+    this.tray.add(this.comb);
+    this.paper = createPaper(0.2, 0.14);
+    this.paper.position.copy(this.paperHome);
+    this.tray.add(this.paper);
+    this.gallery.position.set(0, 0.32, -TRAY_D / 2 - 0.08);
+    this.tray.add(this.gallery);
+    for (const p of loadPrints().slice(0, 3)) {
+      void imageToCanvas(p.image).then((c) => this.hangPrint(c, false));
+    }
 
     this.world.createTransformEntity(this.tray);
 
@@ -231,11 +273,27 @@ export class TraySystem extends createSystem({
     st.lastX = sx;
     st.lastY = sy;
 
-    // Pinch above the water, release to let a drop fall.
-    if (!st.pinched && pinchDist < PINCH_ON) st.pinched = true;
-    else if (st.pinched && pinchDist > PINCH_OFF) {
+    // Pinch: grab a tool if the pinch starts near one, otherwise ready a drop.
+    this.pinchPt.set(
+      (p[ti] + p[tt]) / 2,
+      (p[ti + 1] + p[tt + 1]) / 2,
+      (p[ti + 2] + p[tt + 2]) / 2,
+    );
+    this.tray.worldToLocal(this.pinchPt);
+    if (!st.pinched && pinchDist < PINCH_ON) {
+      st.pinched = true;
+      st.tool = 'none';
+      if (this.pinchPt.distanceTo(this.comb.position) < GRAB_RADIUS && !this.heldBy('comb')) {
+        st.tool = 'comb';
+        st.combIn = false;
+      } else if (this.pinchPt.distanceTo(this.paper.position) < GRAB_RADIUS * 2 && !this.heldBy('paper')) {
+        st.tool = 'paper';
+      }
+    } else if (st.pinched && pinchDist > PINCH_OFF) {
       st.pinched = false;
-      if (over && this.tip.y > TOUCH_DEPTH && this.tip.y < 0.35) {
+      if (st.tool === 'comb') this.returnComb();
+      else if (st.tool === 'paper') this.releasePaper();
+      else if (over && this.tip.y > TOUCH_DEPTH && this.tip.y < 0.35) {
         // Higher release, bigger splash (within a natural range).
         const target = 0.014 + Math.min(0.3, this.tip.y) * 0.08;
         this.drops.push({
@@ -247,6 +305,75 @@ export class TraySystem extends createSystem({
           rgb: PALETTE[this.pigment].rgb,
         });
       }
+      st.tool = 'none';
     }
+
+    if (st.pinched && st.tool === 'comb') this.driveComb(st);
+    if (st.pinched && st.tool === 'paper') {
+      this.paper.position.set(this.pinchPt.x, Math.max(0.002, this.pinchPt.y - 0.01), this.pinchPt.z);
+    }
+  }
+
+  private heldBy(tool: Tool): boolean {
+    return this.handInput.left.tool === tool || this.handInput.right.tool === tool;
+  }
+
+  /** The comb hangs from the pinch with its spine across the tray. */
+  private driveComb(st: HandInput): void {
+    this.comb.rotation.y = 0;
+    this.comb.position.copy(this.pinchPt);
+    const tipsY = this.pinchPt.y - COMB_TINE_LENGTH;
+    const cx = this.pinchPt.x;
+    const cy = -this.pinchPt.z;
+    const inside = Math.abs(cy) < TRAY_D / 2 && Math.abs(cx) < TRAY_W / 2 + 0.1;
+    const inWater = inside && tipsY < TOUCH_DEPTH;
+    if (inWater && st.combIn) {
+      this.surface.addComb(st.combX, st.combY, cx, cy, 1, 0, COMB_TINES, COMB_SPACING);
+    }
+    st.combIn = inWater;
+    st.combX = cx;
+    st.combY = cy;
+  }
+
+  private returnComb(): void {
+    this.comb.rotation.y = Math.PI / 2;
+    this.comb.position.copy(this.combHome);
+  }
+
+  /** Laying the paper on the water lifts the pattern off as a print. */
+  private releasePaper(): void {
+    const px = this.paper.position.x;
+    const py = -this.paper.position.z;
+    const onWater = Math.abs(px) < TRAY_W / 2 && Math.abs(py) < TRAY_D / 2 && this.paper.position.y < 0.08;
+    this.paper.position.copy(this.paperHome);
+    if (onWater) this.liftPrint();
+  }
+
+  liftPrint(): void {
+    const { data, width, height } = this.surface.readPixels();
+    const canvas = pixelsToCanvas(data, width, height);
+    savePrint(canvas);
+    this.hangPrint(canvas, true);
+    this.surface.clear([0.93, 0.9, 0.82]);
+    this.drops.length = 0;
+    this.printsMade++;
+  }
+
+  /** Hangs a print in a row behind the tray: newest centre, older alternating outward. */
+  private hangPrint(canvas: HTMLCanvasElement, newest: boolean): void {
+    const print = createPrintMesh(canvas, 0.24);
+    print.rotation.x = -0.12;
+    const order = this.gallery.children.slice();
+    if (newest) order.unshift(print);
+    else order.push(print);
+    while (order.length > 5) {
+      const old = order.pop()!;
+      this.gallery.remove(old);
+    }
+    this.gallery.add(print);
+    order.forEach((m, i) => {
+      const slot = Math.ceil(i / 2) * (i % 2 ? -1 : 1);
+      m.position.set(slot * 0.27, -Math.abs(slot) * 0.02, 0);
+    });
   }
 }
