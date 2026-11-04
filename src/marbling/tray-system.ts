@@ -15,6 +15,7 @@ import {
   createSystem,
 } from '@iwsdk/core';
 import { type Handedness, J } from '../hands/joints.js';
+import { perfCounters } from '../debug/perf-hud.js';
 import { XRHandReader } from '../hands/xr-hands.js';
 import { PALETTE, spreadIncrement } from './ops.js';
 import { MarblingSurface } from './surface.js';
@@ -190,6 +191,7 @@ export class TraySystem extends createSystem({
 
     this.water.material.map = this.surface.texture;
     this.stats.passesLastFrame = this.surface.takePassCount();
+    perfCounters.passes += this.stats.passesLastFrame;
   }
 
   private handleHand(side: Handedness): void {

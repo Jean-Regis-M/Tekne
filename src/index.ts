@@ -1,5 +1,6 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
+import { PerfHudSystem } from './debug/perf-hud.js';
 import { TraySystem } from './marbling/tray-system.js';
 
 World.create(
@@ -7,6 +8,7 @@ World.create(
   projectOptions,
 ).then((world) => {
   world.registerSystem(TraySystem);
+  if (new URLSearchParams(location.search).has('hud')) world.registerSystem(PerfHudSystem);
   console.info('[ebru] world ready');
   if (import.meta.env.DEV) {
     // Development-only handle for emulator-driven tests and evidence capture.
