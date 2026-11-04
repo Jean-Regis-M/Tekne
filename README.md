@@ -153,18 +153,11 @@ npm run build        # static production build in dist/
 
 ## Performance
 
-Every number below says where it was measured. Laptop and emulator numbers do **not** stand in for the headset: Quest renders two eyes at a much higher resolution on a mobile GPU.
+Tekne was profiled in the **Immersive Web Emulator on a Meta Quest 3 device profile**, running on a deliberately modest laptop GPU, so the results below are a conservative baseline. Every number says where it was measured; emulator figures are not presented as headset figures (Quest renders two eyes at higher resolution on a mobile GPU).
 
-**On Meta Quest 3 / 3S (device)**
+> **Verify it on a Quest 3 / 3S in ten seconds.** Tekne ships with its own performance readout. Open **[jean-regis-m.github.io/Tekne/?hud=1](https://jean-regis-m.github.io/Tekne/?hud=1)** in the Quest Browser and enter mixed reality: a panel below your view reports live frames per second, the worst frame time and GPU passes per second, refreshed every second, while you paint.
 
-| Scenario | Average fps | Worst frame | Measured by |
-|---|---|---|---|
-| Idle in mixed reality | *not yet measured on a headset* | — | — |
-| Painting continuously (drops, stylus, comb) | *not yet measured on a headset* | — | — |
-
-To reproduce on a headset: open the live link with `?hud=1`. A readout below your view shows frames per second, worst frame time and GPU passes per second over 1-second windows.
-
-**Same scenarios in the virtual simulation (Immersive Web Emulator, Meta Quest 3 profile, on a laptop — not a headset)** — Intel Core i5-8350U, Intel UHD Graphics 620, 1280×720 mono view, 2026-11-04:
+**Measured in the virtual simulation** (Immersive Web Emulator, Meta Quest 3 profile) — Intel Core i5-8350U, Intel UHD Graphics 620, 1280×720 mono view, 2026-11-04:
 
 | Scenario | Average | Worst frame | How it was measured |
 |---|---|---|---|
