@@ -108,7 +108,7 @@ export async function run() {
     const park = () => tip(0.55, 0.35, 0.45, 0);
 
     // 1. First-run lesson: watch the ghost, then poke a pot and make 3 drops.
-    await head(seated, trayC);
+    await head(P(W(0, 0.5, -0.42)), trayC);
     await park();
     await clip('c1_lesson', async () => {
       await sleep(6500);
@@ -125,7 +125,7 @@ export async function run() {
     });
 
     // 2. Painting: battal ground in three pigments, then gelgit strokes.
-    const near = P(W(0, 0.45, 0.32));
+    const near = P(W(0, 0.45, -0.34)); // user's side of the tray (surface y is negative toward the user)
     await head(near, trayC);
     await clip('c2_paint', async () => {
       for (const [pig, n] of [[0, 14], [2, 11], [1, 9]]) {
@@ -144,7 +144,7 @@ export async function run() {
     });
 
     // 3. Comb: pinch it off the rim and pull through two lanes (close view).
-    await head(P(W(0, 0.36, 0.16)), P(W(0, 0, -0.02)));
+    await head(P(W(0, 0.38, -0.2)), P(W(0, 0, 0.02)));
     await clip('c3_comb', async () => {
       const c = tray.combRest;
       await tip(c.x, c.y + 0.05, -c.z, 300);
@@ -186,7 +186,7 @@ export async function run() {
 
     // 5. Comfort tiles: high contrast on, a few drops, then off again.
     const tiles = tray.tiles;
-    await head(P(W(0.12, 0.42, 0.42)), P(W(0.12, 0, 0.08)));
+    await head(P(W(0.14, 0.4, -0.4)), P(W(0.14, 0, -0.08)));
     await clip('c5_access', async () => {
       await sleep(1000);
       const t = tiles[1].mesh.position;
@@ -209,7 +209,7 @@ export async function run() {
     // 6. Gallery: a slow look along the wall.
     const g = E.gallery.prints[0]?.userData.target;
     const gl = g ? { x: g.x, y: g.y, z: g.z } : { x: 0.9, y: 1.5, z: -3.4 };
-    await head({ x: gl.x - 0.2, y: 1.55, z: gl.z + 1.6 }, { x: gl.x - 0.7, y: gl.y, z: gl.z });
+    await head({ x: gl.x - 0.35, y: gl.y + 0.05, z: gl.z + 0.95 }, { x: gl.x - 0.7, y: gl.y, z: gl.z });
     await clip('c6_gallery', async () => {
       await sleep(600);
       await pan({ x: gl.x - 0.7, y: gl.y, z: gl.z }, { x: gl.x + 0.1, y: gl.y, z: gl.z }, 5200);
