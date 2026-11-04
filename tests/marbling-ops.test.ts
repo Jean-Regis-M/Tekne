@@ -49,3 +49,21 @@ describe('stylus stroke', () => {
     close(strokeInverse([0.2, 0.2], a, b, 0.01), [0.2, 0.2]);
   });
 });
+
+describe('tine line', () => {
+  it('is exactly invertible and moves points along the line only', async () => {
+    const { tineForward, tineInverse } = await import('../src/marbling/ops.js');
+    const b: [number, number] = [0, 0.1];
+    const m: [number, number] = [1, 0];
+    for (const p of [[0.2, 0.1], [-0.3, 0.13], [0.05, -0.2]] as Array<[number, number]>) {
+      const q = tineForward(p, b, m, 0.08, 1e-6);
+      expect(q[1]).toBeCloseTo(p[1], 12);
+      const back = tineInverse(q, b, m, 0.08, 1e-6);
+      expect(back[0]).toBeCloseTo(p[0], 12);
+      expect(back[1]).toBeCloseTo(p[1], 12);
+    }
+    // On the line the full shift applies; far away almost none.
+    expect(tineForward([0, 0.1], b, m, 0.08, 1e-6)[0]).toBeCloseTo(0.08, 12);
+    expect(tineForward([0, 0.5], b, m, 0.08, 1e-6)[0]).toBeLessThan(0.08 * 0.01);
+  });
+});

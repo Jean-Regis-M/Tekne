@@ -10,6 +10,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  SRGBColorSpace,
   Vector3,
   VisibilityState,
   XRPlane,
@@ -174,7 +175,9 @@ export class TraySystem extends createSystem({
         new MeshStandardMaterial({ color: 0xd8cbb2, roughness: 0.9 }),
       );
       const inkMat = new MeshBasicMaterial();
-      inkMat.color.setRGB(p.rgb[0], p.rgb[1], p.rgb[2]);
+      // Palette values are sRGB (as written to the paint texture); say so, or
+      // three.js treats them as linear and the pots look washed out.
+      inkMat.color.setRGB(p.rgb[0], p.rgb[1], p.rgb[2], SRGBColorSpace);
       this.inks.push(inkMat);
       const ink = new Mesh(new CylinderGeometry(0.019, 0.019, 0.002, 20), inkMat);
       ink.position.y = 0.0175;
@@ -237,7 +240,7 @@ export class TraySystem extends createSystem({
 
   private refreshInks(): void {
     const pal = this.palette();
-    this.inks.forEach((m, i) => m.color.setRGB(pal[i].rgb[0], pal[i].rgb[1], pal[i].rgb[2]));
+    this.inks.forEach((m, i) => m.color.setRGB(pal[i].rgb[0], pal[i].rgb[1], pal[i].rgb[2], SRGBColorSpace));
   }
 
   private toggleTile(tile: SettingTile): void {

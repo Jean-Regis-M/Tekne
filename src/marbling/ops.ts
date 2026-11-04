@@ -92,3 +92,22 @@ export const PALETTE_HIGH_CONTRAST = [
 ] as const;
 
 export type PigmentId = (typeof PALETTE)[number]['id'];
+
+/**
+ * Tine line (Lu, Jaffer et al. 2012): an infinitely long stroke through B in
+ * unit direction M. Every point moves along M by z * u^d, where d is its
+ * distance from the line and 0 < u < 1 sets how sharply the effect fades.
+ * Because the shift is parallel to the line, d is unchanged, so the inverse
+ * is exact. Used for whole-tray gelgit and comb passes (offline art, motifs).
+ */
+export function tineForward(p: V2, b: V2, m: V2, z: number, u: number): V2 {
+  const d = Math.abs((p[0] - b[0]) * -m[1] + (p[1] - b[1]) * m[0]);
+  const s = z * Math.pow(u, d);
+  return [p[0] + m[0] * s, p[1] + m[1] * s];
+}
+
+export function tineInverse(q: V2, b: V2, m: V2, z: number, u: number): V2 {
+  const d = Math.abs((q[0] - b[0]) * -m[1] + (q[1] - b[1]) * m[0]);
+  const s = z * Math.pow(u, d);
+  return [q[0] - m[0] * s, q[1] - m[1] * s];
+}
