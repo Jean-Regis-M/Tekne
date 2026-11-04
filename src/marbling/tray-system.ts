@@ -91,8 +91,34 @@ export class TraySystem extends createSystem({
   private combHome = new Vector3(-TRAY_W / 2 - 0.05, 0.03, 0);
   private paperHome = new Vector3(TRAY_W / 2 + 0.16, 0.002, 0);
   private gallery = new Group();
-  /** Count of prints made this session (for tests and the HUD). */
-  printsMade = 0;
+  /** Interaction counters read by onboarding and tests. */
+  readonly counters = {
+    pigmentPicks: 0,
+    drops: 0,
+    /** Metres the fingertip has travelled through the water. */
+    stylusTravel: 0,
+    /** Metres the comb has travelled through the water. */
+    combTravel: 0,
+    combGrabs: 0,
+    paperGrabs: 0,
+    prints: 0,
+  };
+  get printsMade(): number {
+    return this.counters.prints;
+  }
+  /** Tray root, for overlays anchored in tray space. */
+  get root(): Group {
+    return this.tray;
+  }
+  get combRest(): Vector3 {
+    return this.combHome;
+  }
+  get paperRest(): Vector3 {
+    return this.paperHome;
+  }
+  potPosition(i: number): Vector3 {
+    return this.pots[i].position;
+  }
 
   /** Exposed for the debug HUD / tests. */
   stats = { passesLastFrame: 0, placedOnTable: false };
@@ -261,6 +287,7 @@ export class TraySystem extends createSystem({
         i !== this.pigment
       ) {
         this.selectPigment(i);
+        this.counters.pigmentPicks++;
       }
     }
 
@@ -268,6 +295,7 @@ export class TraySystem extends createSystem({
     const inWater = over && this.tip.y < TOUCH_DEPTH;
     if (inWater && st.touching) {
       this.surface.addStroke(st.lastX, st.lastY, sx, sy);
+      this.counters.stylusTravel += Math.hypot(sx - st.lastX, sy - st.lastY);
     }
     st.touching = inWater;
     st.lastX = sx;
@@ -286,8 +314,10 @@ export class TraySystem extends createSystem({
       if (this.pinchPt.distanceTo(this.comb.position) < GRAB_RADIUS && !this.heldBy('comb')) {
         st.tool = 'comb';
         st.combIn = false;
+        this.counters.combGrabs++;
       } else if (this.pinchPt.distanceTo(this.paper.position) < GRAB_RADIUS * 2 && !this.heldBy('paper')) {
         st.tool = 'paper';
+        this.counters.paperGrabs++;
       }
     } else if (st.pinched && pinchDist > PINCH_OFF) {
       st.pinched = false;
@@ -304,6 +334,7 @@ export class TraySystem extends createSystem({
           age: 0,
           rgb: PALETTE[this.pigment].rgb,
         });
+        this.counters.drops++;
       }
       st.tool = 'none';
     }
@@ -329,6 +360,7 @@ export class TraySystem extends createSystem({
     const inWater = inside && tipsY < TOUCH_DEPTH;
     if (inWater && st.combIn) {
       this.surface.addComb(st.combX, st.combY, cx, cy, 1, 0, COMB_TINES, COMB_SPACING);
+      this.counters.combTravel += Math.hypot(cx - st.combX, cy - st.combY);
     }
     st.combIn = inWater;
     st.combX = cx;
@@ -356,7 +388,7 @@ export class TraySystem extends createSystem({
     this.hangPrint(canvas, true);
     this.surface.clear([0.93, 0.9, 0.82]);
     this.drops.length = 0;
-    this.printsMade++;
+    this.counters.prints++;
   }
 
   /** Hangs a print in a row behind the tray: newest centre, older alternating outward. */
